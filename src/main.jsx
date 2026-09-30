@@ -61,6 +61,10 @@ function App() {
   useEffect(() => { try { localStorage.setItem(KEYS.exercise, JSON.stringify(exerciseLog)); } catch {} }, [exerciseLog]);
   useEffect(() => { try { localStorage.setItem(KEYS.language, JSON.stringify(language)); } catch {} }, [language]);
   useEffect(() => { try { localStorage.setItem(KEYS.decision, JSON.stringify({ options, priorities })); } catch {} }, [options, priorities]);
+  const active = sessions.find(s => s.id === activeId) || null;
+  const messages = active?.messages || [];
+  const sortedSessions = useMemo(() => [...sessions].sort((a, b) => b.updatedAt - a.updatedAt), [sessions]);
+  const updateActive = (fn) => setSessions(old => old.map(s => s.id === activeId ? { ...fn(s), updatedAt: Date.now() } : s));
   useEffect(() => {
     const last = messages[messages.length - 1];
     if (voiceReplies && last?.role === 'assistant' && canSpeak) {
@@ -70,11 +74,6 @@ function App() {
       window.speechSynthesis.speak(utterance);
     }
   }, [messages, voiceReplies, canSpeak, language]);
-
-  const active = sessions.find(s => s.id === activeId) || null;
-  const messages = active?.messages || [];
-  const sortedSessions = useMemo(() => [...sessions].sort((a, b) => b.updatedAt - a.updatedAt), [sessions]);
-  const updateActive = (fn) => setSessions(old => old.map(s => s.id === activeId ? { ...fn(s), updatedAt: Date.now() } : s));
 
   function newReflection() { const session = emptySession(); setSessions(old => [session, ...old]); setActiveId(session.id); setSummary(null); setTab('reflect'); setInput(''); setMenuOpen(false); }
   function selectSession(id) { setActiveId(id); setSummary(sessions.find(s => s.id === id)?.summary || null); setTab('reflect'); setMenuOpen(false); }
