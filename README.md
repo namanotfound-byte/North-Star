@@ -8,7 +8,9 @@ Northstar is a calm, ad-free thinking companion for students and young adults. I
 2. Run `npm install` and `npm run dev` to start the Vite interface.
 3. Copy `.env.example` to `.env.local` and add a Groq API key for hosted AI conversations.
 
-The Groq API key is read only by the serverless function in `/api/chat` and is never sent to browser code. The app requires no account or database. Chat messages are sent to Groq for response generation and are held in client memory during the session.
+The Groq API key is read only by the serverless function in `/api/chat` and is never sent to browser code. The app requires no account or database. Chat messages are sent to Groq for response generation; conversation history, mood notes, goals, and decision drafts are saved in the current browser's local storage. They do not sync between devices.
+
+The app includes a local chat history, guided reflection, a decision workspace with an AI-generated pros/cons and risks dashboard, a mood journal, goals, daily exercises, progress overview, optional browser voice dictation, and English, Hindi, and Spanish response preferences.
 
 ## Deploy to Vercel
 
