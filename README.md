@@ -10,7 +10,7 @@ Northstar is a calm, ad-free thinking companion for students and young adults. I
 
 The Groq API key is read only by the serverless function in `/api/chat` and is never sent to browser code. The app requires no account or database. Chat messages are sent to Groq for response generation; conversation history, mood notes, goals, and decision drafts are saved in the current browser's local storage. They do not sync between devices.
 
-The app includes a local chat history, guided reflection, a decision workspace with an AI-generated pros/cons and risks dashboard, a mood journal, goals, daily exercises, progress overview, optional browser voice dictation, and English, Hindi, and Spanish response preferences.
+The app includes a local chat history, guided reflection, a decision workspace with an AI-generated pros/cons and risks dashboard, a mood journal, goals, daily exercises, progress overview, optional browser voice dictation and spoken replies, and English, Hindi, and Spanish response preferences.
 
 ## Deploy to Vercel
 

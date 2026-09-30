@@ -47,11 +47,13 @@ function App() {
   const [decisionDraft] = useState(() => read(KEYS.decision, { options: ['', ''], priorities: '' }));
   const [options, setOptions] = useState(() => decisionDraft.options || ['', '']);
   const [priorities, setPriorities] = useState(() => decisionDraft.priorities || '');
-  const [summary, setSummary] = useState(null);
+  const [summary, setSummary] = useState(() => bootSessions.find(s => s.id === (read(KEYS.active, null) || bootSessions[0]?.id))?.summary || null);
   const [summaryBusy, setSummaryBusy] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
+  const [canSpeak, setCanSpeak] = useState(false);
+  const [voiceReplies, setVoiceReplies] = useState(false);
 
-  useEffect(() => { setVoiceSupported(Boolean(window.SpeechRecognition || window.webkitSpeechRecognition)); }, []);
+  useEffect(() => { setVoiceSupported(Boolean(window.SpeechRecognition || window.webkitSpeechRecognition)); setCanSpeak(Boolean(window.speechSynthesis && window.SpeechSynthesisUtterance)); }, []);
   useEffect(() => { try { localStorage.setItem(KEYS.sessions, JSON.stringify(sessions)); } catch {} }, [sessions]);
   useEffect(() => { try { localStorage.setItem(KEYS.active, JSON.stringify(activeId)); } catch {} }, [activeId]);
   useEffect(() => { try { localStorage.setItem(KEYS.mood, JSON.stringify(moodLog)); } catch {} }, [moodLog]);
@@ -59,6 +61,15 @@ function App() {
   useEffect(() => { try { localStorage.setItem(KEYS.exercise, JSON.stringify(exerciseLog)); } catch {} }, [exerciseLog]);
   useEffect(() => { try { localStorage.setItem(KEYS.language, JSON.stringify(language)); } catch {} }, [language]);
   useEffect(() => { try { localStorage.setItem(KEYS.decision, JSON.stringify({ options, priorities })); } catch {} }, [options, priorities]);
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    if (voiceReplies && last?.role === 'assistant' && canSpeak) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(last.content);
+      utterance.lang = language === 'Hindi' ? 'hi-IN' : language === 'Spanish' ? 'es-ES' : 'en-US';
+      window.speechSynthesis.speak(utterance);
+    }
+  }, [messages, voiceReplies, canSpeak, language]);
 
   const active = sessions.find(s => s.id === activeId) || null;
   const messages = active?.messages || [];
@@ -66,7 +77,7 @@ function App() {
   const updateActive = (fn) => setSessions(old => old.map(s => s.id === activeId ? { ...fn(s), updatedAt: Date.now() } : s));
 
   function newReflection() { const session = emptySession(); setSessions(old => [session, ...old]); setActiveId(session.id); setSummary(null); setTab('reflect'); setInput(''); setMenuOpen(false); }
-  function selectSession(id) { setActiveId(id); setSummary(null); setTab('reflect'); setMenuOpen(false); }
+  function selectSession(id) { setActiveId(id); setSummary(sessions.find(s => s.id === id)?.summary || null); setTab('reflect'); setMenuOpen(false); }
   function startVoice() {
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Recognition) return;
@@ -97,7 +108,7 @@ function App() {
     setSummaryBusy(true); setSummary(null);
     try {
       const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'summary', messages, options: options.filter(Boolean), priorities: priorities.split(',').map(x => x.trim()).filter(Boolean), language }) });
-      const data = await res.json(); if (!res.ok || data.error) throw new Error(data.error || 'Could not create the decision summary.'); setSummary(data.summary);
+      const data = await res.json(); if (!res.ok || data.error) throw new Error(data.error || 'Could not create the decision summary.'); setSummary(data.summary); updateActive(s => ({ ...s, summary: data.summary }));
     } catch (error) { setSummary({ error: error.message }); }
     finally { setSummaryBusy(false); }
   }
@@ -133,7 +144,7 @@ function App() {
       <header className="topbar"><button className="icon-button show-mobile" onClick={()=>setMenuOpen(true)} aria-label="Open menu"><Menu size={19}/></button><div className="mode-label"><span className="mode-dot"/> {title}</div><span className="local-badge"><ShieldCheck size={13}/> Saved on this device</span></header>
       {tab==='reflect' && <section className="chat-content">
         {!active || messages.length===0 ? <div className="empty-chat"><div className="welcome-kicker"><span className="kicker-star">✳</span> YOUR THINKING SPACE</div><h1>Find your way <em>forward.</em></h1><p className="hero-sub">A little space to untangle what’s on your mind.<br/> No rush. No judgement. Just you, finding clarity.</p><div className="starter-row">{['I feel stuck between two choices','I have a lot on my mind','I want to understand how I feel'].map(s=><button className="starter" key={s} onClick={()=>startConversation(s)}><span className="starter-icon">✳</span>{s}<ArrowUpRight size={13}/></button>)}</div></div> : <><div className="chat-heading"><img className="chat-logo" src="/northstar-logo.png" alt=""/><div><span className="chat-kicker">LET’S TAKE THIS ONE STEP AT A TIME</span><h2>{active.title}</h2></div></div><div className="message-list">{messages.map((m,i)=><div key={i} className={`message ${m.role}`}><div className="message-avatar">{m.role==='assistant'?<img src="/northstar-logo.png" alt="Northstar"/>:<span>N</span>}</div><div className="message-text">{m.role==='assistant'?<Typewriter text={m.content}/>:m.content}</div></div>)}{loading&&<div className="message assistant"><div className="message-avatar"><img src="/northstar-logo.png" alt="Northstar"/></div><div className="typing"><i/><i/><i/></div></div>}</div></>}
-        <div className="chat-composer"><textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();startConversation()}}} placeholder="What’s on your mind? Share a little more…" rows="2"/><div className="composer-actions">{voiceSupported&&<button className="icon-button" onClick={startVoice} title="Dictate with voice"><Mic size={17}/></button>}<button className="send-button" onClick={()=>startConversation()} disabled={!input.trim()||loading} aria-label="Send"><Send size={16}/></button></div><span className="chat-footnote">Northstar helps you think; your decision stays yours.</span></div>
+        <div className="chat-composer"><textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();startConversation()}}} placeholder="What’s on your mind? Share a little more…" rows="2"/><div className="composer-actions">{canSpeak&&<button className={`voice-toggle ${voiceReplies?'on':''}`} onClick={()=>{if(voiceReplies)window.speechSynthesis.cancel();setVoiceReplies(v=>!v)}} aria-label={voiceReplies?'Turn off voice replies':'Turn on voice replies'}>{voiceReplies?'Voice on':'Voice off'}</button>}{voiceSupported&&<button className="icon-button" onClick={startVoice} title="Dictate with voice"><Mic size={17}/></button>}<button className="send-button" onClick={()=>startConversation()} disabled={!input.trim()||loading} aria-label="Send"><Send size={16}/></button></div><span className="chat-footnote">Northstar helps you think; your decision stays yours.</span></div>
       </section>}
       {tab==='journal' && <section className="tool-page"><PageIntro eyebrow="CHECK IN WITH YOURSELF" title="How are you feeling?" text="A small check-in can help you spot how your days are unfolding. Your notes stay on this device."/><div className="panel"><h3>Right now, I feel…</h3><div className="mood-grid">{moods.map(m=><button key={m} className="mood-choice" onClick={()=>addMood(m)}>{m}</button>)}</div><textarea className="field textarea-field" value={moodNote} onChange={e=>setMoodNote(e.target.value)} placeholder="Anything you want to remember about today? (optional)" rows="3"/></div><div className="panel"><h3>Recent check-ins</h3>{recentMoods.length ? <div className="journal-list">{recentMoods.map(m=><div className="journal-entry" key={m.id}><span className="mood-mark">✳</span><div><strong>{m.mood}</strong>{m.note&&<p>{m.note}</p>}</div><time>{new Date(m.date).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</time></div>)}</div> : <p className="muted-copy">Your check-ins will appear here.</p>}</div></section>}
       {tab==='decide' && <section className="tool-page"><PageIntro eyebrow="MAKE ROOM FOR EVERY ANGLE" title="Think it through." text="Lay out the options, then let Northstar help you notice tradeoffs, risks, opportunities and what matters most."/><div className="panel option-panel"><h3>Your options</h3>{options.map((o,i)=><label className="field-label" key={i}>Option {i+1}<input className="field" value={o} onChange={e=>setOptions(old=>old.map((v,j)=>j===i?e.target.value:v))} placeholder={i===0?'e.g. Choose science':'e.g. Choose commerce'}/></label>)}{options.length<4&&<button className="text-button" onClick={()=>setOptions(old=>[...old,''])}><Plus size={15}/> Add another option</button>}<label className="field-label priorities-label">What matters most to you?<input className="field" value={priorities} onChange={e=>setPriorities(e.target.value)} placeholder="Separate priorities with commas"/></label><button className="primary-button" onClick={()=>{setTab('reflect');if(!active)newReflection();setInput(`I’m considering ${options.filter(Boolean).join(' or ')}. What matters most to me is ${priorities || 'still becoming clear'}. Help me think it through.`)}}>Start a guided reflection <ArrowRight size={16}/></button></div>{messages.filter(m=>m.role==='user').length>=2&&<div className="panel summary-action"><div><h3>Ready to see the bigger picture?</h3><p>Build a personal decision dashboard from this conversation.</p></div><button className="primary-button" disabled={summaryBusy} onClick={makeSummary}>{summaryBusy?'Putting it together…':'Create my summary'} <ArrowRight size={16}/></button></div>}{summary&&<SummaryCard summary={summary}/>}</section>}
